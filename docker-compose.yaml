@@ -1,0 +1,30 @@
+version: "3.3"
+
+services:
+  db:
+    image: postgres:12.3
+    restart: unless-stopped
+    volumes:
+      - ./data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_USER: mattox
+      POSTGRES_PASSWORD: mattox_on_the_road
+      POSTGRES_DB: 6_qui_prends
+    networks:
+      - 6_qui_prends
+
+  redis:
+    image: redis:6.0.5
+    restart: unless-stopped
+    ports:
+      - 6379:6379
+    environment:
+      REDIS_PASSWORD: mattox_on_the_road
+    networks:
+      - 6_qui_prends
+
+networks:
+  6_qui_prends:
+    name: 6_qui_prends
