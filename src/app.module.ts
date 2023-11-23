@@ -6,6 +6,10 @@ import { UsersModule } from './users/users.module';
 import {RedisModule} from "./redis/redis.module";
 import {APP_FILTER} from '@nestjs/core';
 import {AuthExceptionFilter} from "./auth/exception-filter/exception-filter";
+import {GameModule} from "./game/game.module";
+import {RoomModule} from "./room/room.module";
+import {WordGlossary} from "./words-glossary/words-glossary.entity";
+import {WordsGlossaryModule} from "./words-glossary/words-glossary.module";
 
 @Module({
   imports: [
@@ -22,7 +26,7 @@ import {AuthExceptionFilter} from "./auth/exception-filter/exception-filter";
         username: configService.get('POSTGRES_USER'),
         password: configService.get('POSTGRES_PASSWORD'),
         database: configService.get('POSTGRES_DATABASE'),
-        entities: [User],
+        entities: [User, WordGlossary],
         synchronize: true,
         extra: {
           ssl: configService.get('POSTGRES_SSL') === 'true',
@@ -32,6 +36,9 @@ import {AuthExceptionFilter} from "./auth/exception-filter/exception-filter";
     } as TypeOrmModuleAsyncOptions),
     UsersModule,
     RedisModule,
+    GameModule,
+    RoomModule,
+    WordsGlossaryModule
   ],
   controllers: [],
   providers: [
