@@ -25,7 +25,7 @@ export class GameService {
 
   async startGame(slug: string, user: User): Promise<User[]> {
     const room = await this.roomService.getRoom(slug);
-    if (room.host.userId != user.userId) throw new Error("Vous n'êtes pas le créateur de la room");
+    if (room.host.username != user.username) throw new Error("Vous n'êtes pas le créateur de la room");
     if (room.currentPlayers < 3) throw new Error("Il n'y a pas assez de joueurs");
     if (room.started == true) throw new Error("La partie à déjà commencé");
     [room.users,] = await this.newRound(slug);
@@ -55,7 +55,7 @@ export class GameService {
 
   async getDeck(slug: string, user: User): Promise<Card[]> {
     const room: RoomModel = await this.roomService.getRoom(slug);
-    return room.users.find((elem: User) => elem.userId == user.userId).cards;
+    return room.users.find((elem: User) => elem.username == user.username).cards;
   }
 }
 

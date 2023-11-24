@@ -6,7 +6,6 @@ import {WordsGlossaryService} from "../../words-glossary/service/words-glossary.
 
 @Injectable()
 export class RoomService {
-  private rooms: RoomModel[] = [];
 
   constructor(
     private redisService: RedisService,
@@ -60,8 +59,8 @@ export class RoomService {
       'slug', room.slug,
       'started', room.started.toString(),
       'currentRound', '0',
+      'board', JSON.stringify(room.board)
     ]);
-    this.rooms = [...this.rooms, room];
     return room;
   }
 
@@ -179,14 +178,15 @@ export class RoomService {
         username: user.username,
         socketId: user.socketId,
         isHost: user.userId === room.host.userId,
+        hasToPlay: user.hasToPlay,
       }
     }) as UserWithHost[];
   }
 
-  async kickUser(slug: string, username: string): Promise<void> {
+  async kickUser(slug: string, userId: string): Promise<void> {
     const room: RoomModel = await this.getRoom(slug);
-    const user: User = room.users.find((user: User) => user.username === username);
-    if (!user) throw new HttpException(`L'utilisateur ${username} n'existe pas dans la room`, 404);
+    const user: User = room.users.find((user: User) => user.userId === userId);
+    if (!user) throw new HttpException(`L'utilisateur ${userId} n'existe pas dans la room`, 404);
     await this.removeUserFromRoom(user.socketId, slug);
   }
 }

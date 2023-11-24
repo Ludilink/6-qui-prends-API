@@ -10,6 +10,7 @@ import {GameModule} from "./game/game.module";
 import {RoomModule} from "./room/room.module";
 import {WordGlossary} from "./words-glossary/words-glossary.entity";
 import {WordsGlossaryModule} from "./words-glossary/words-glossary.module";
+import {RoomWebsocketGateway} from "./room/room.websocket.gateway";
 
 @Module({
   imports: [
@@ -41,7 +42,7 @@ import {WordsGlossaryModule} from "./words-glossary/words-glossary.module";
     WordsGlossaryModule
   ],
   controllers: [],
-  providers: [
+  providers: [RoomWebsocketGateway,
     {
       provide: APP_FILTER,
       useClass: AuthExceptionFilter,

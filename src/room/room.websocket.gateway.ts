@@ -10,9 +10,8 @@ import {Socket} from 'socket.io';
 import {RedisService} from "../redis/service/redis.service";
 import {RoomService} from "./service/room.service";
 import {Message} from "./dto/room.dto";
-import {jwtDecode} from "jwt-decode";
 import {GameService} from "../game/service/game.service";
-import { v4 as uuid } from 'uuid';
+import {SimpleUser} from "./room.model";
 
 
 @WebSocketGateway({cors: '*', namespace: 'room'})
@@ -26,14 +25,13 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
   @WebSocketServer() server;
 
   handleConnection(socket: Socket): void {
-    const socketId = socket.id;
     socket.data.user = {
-      userId: uuid(),
-      socketId: socketId,
+      userId: socket.handshake.query.userId as string,
+      socketId: socket.id,
       username: socket.handshake.query.username as string,
     };
     socket.data.slug = socket.handshake.query.slug as string
-    console.log(`New connecting... socket id:`, socketId);
+    console.log(`New connecting... socket id:`, socket.id);
   }
 
   handleDisconnect(socket: Socket): void {
@@ -49,6 +47,7 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
   @SubscribeMessage('joinRoom')
   async joinRoom(@ConnectedSocket() client: Socket): Promise<{}> {
     return this.handleAction(client.data.slug, async () => {
+      console.log("API joinRoom -> ", client.data.slug, client.data.user)
       await this.roomService.addUserToRoom(client.data.slug, client.data.user)
       client.join(client.data.slug);
       this.server.to(client.data.user.socketId).emit('cards', await this.gameService.getDeck(client.data.slug, client.data.user));

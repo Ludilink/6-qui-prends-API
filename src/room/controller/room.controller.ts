@@ -44,10 +44,10 @@ export class RoomController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Delete('/:slug/kick/:username')
-  async kickUser(@Param('slug') slug: string, @Param('username') username: string): Promise<void> {
+  @Delete('/:slug/kick/:userId')
+  async kickUser(@Param('slug') slug: string, @Param('userId') userId: string): Promise<void> {
     try {
-      return await this.roomService.kickUser(slug, username);
+      return await this.roomService.kickUser(slug, userId);
     } catch (e) {
       throw new HttpException(e.message, e.status)
     }
