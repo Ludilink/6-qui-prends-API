@@ -1,9 +1,9 @@
 import {Injectable} from "@nestjs/common";
-import FullCards from "../../script/cards";
 import {Card} from "../../script/Card";
-import {RoomModel, User} from "../../room/room.model";
+import {Board, RoomModel, User} from "../../room/room.model";
 import {RedisService} from "../../redis/service/redis.service";
 import {RoomService} from "../../room/service/room.service";
+import cards from "../../script/cards";
 
 @Injectable()
 export class GameService {
@@ -13,37 +13,46 @@ export class GameService {
   ) {
   }
 
-  async getCards(): Promise<{}> {
-    return FullCards;
+  async getCards(nb: number): Promise<Card[]> {
+    return cards(nb);
   }
 
-  async flushCards(): Promise<Card[]> {
-    let fullCards: Card[] = FullCards;
+  async flushCards(nb: number): Promise<Card[]> {
+    let fullCards: Card[] = cards(nb);
     fullCards.sort(() => Math.random() - 0.5);
     return fullCards;
   }
 
   async startGame(slug: string, user: User): Promise<User[]> {
     const room = await this.roomService.getRoom(slug);
-    if (room.host.username != user.username) throw new Error("Vous n'êtes pas le créateur de la room");
-    if (room.currentPlayers < 3) throw new Error("Il n'y a pas assez de joueurs");
+    if (room.host.userId != user.userId) throw new Error("Vous n'êtes pas le créateur de la room");
+    if (room.currentPlayers < 2) throw new Error("Il n'y a pas assez de joueurs");
     if (room.started == true) throw new Error("La partie à déjà commencé");
-    [room.users,] = await this.newRound(slug);
-    await this.redisService.hset(`room:${slug}`, ['started', 'true']);
+    const fullCards: Card[] = await this.flushCards(room.currentPlayers);
+    for (const [index, user] of room.users.entries()) {
+      user.cards = fullCards.slice(index * 10, (index + 1) * 10);
+      user.hasToPlay = true;
+      user.cardsLost = [];
+    }
+    room.board = {
+      slot1: {
+        cards: [fullCards[fullCards.length - 1]],
+      },
+      slot2: {
+        cards: [fullCards[fullCards.length - 2]]
+      },
+      slot3: {
+        cards: [fullCards[fullCards.length - 3]]
+      },
+      slot4: {
+        cards: [fullCards[fullCards.length - 4]]
+      },
+    }
+    await this.redisService.hset(`room:${slug}`, ['started', 'true', 'users', JSON.stringify(room.users), 'board', JSON.stringify(room.board)]);
+    console.log("API startGame -> ", room)
     return room.users;
   }
 
-  async newRound(slug: string): Promise<[User[], number]> {
-    const room = await this.roomService.getRoom(slug);
-    const fullCards: Card[] = await this.flushCards();
-    for (const [index, user] of room.users.entries()) {
-      user.hasToPlay = index === 0;
-      user.cards = fullCards.slice((room.currentRound + 1) * index, (room.currentRound + 1) * (index + 1));
-    }
-    await this.redisService.hset(`room:${slug}`, ['users', JSON.stringify(room.users), 'currentRound', (room.currentRound + 1).toString()]);
-    await this.redisService.hset(`room:${slug}:${room.currentRound + 1}`, ['currentPli', '1']);
-    return [room.users, room.currentRound +1];
-  }
 
   cardInDeck(card: Card, deck: Card[]): boolean {
     return !!deck.find((elem: Card) => elem.id == card.id);
@@ -56,6 +65,11 @@ export class GameService {
   async getDeck(slug: string, user: User): Promise<Card[]> {
     const room: RoomModel = await this.roomService.getRoom(slug);
     return room.users.find((elem: User) => elem.username == user.username).cards;
+  }
+
+  async getBoard(slug: string): Promise<Board> {
+    const room: RoomModel = await this.roomService.getRoom(slug);
+    return room.board;
   }
 }
 

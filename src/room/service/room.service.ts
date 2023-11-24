@@ -96,26 +96,6 @@ export class RoomService {
     }
   }
 
-  async findRoomsByUserSocketId(socketId: string): Promise<RoomModel[]> {
-    const roomKeys: string[] = await this.redisService.keys('room:*');
-    const filteredRooms = [];
-    for (const roomKey of roomKeys) {
-      const room = await this.redisService.hgetall(roomKey);
-      const user = await JSON.parse(room.users).find((user: User) => user.socketId === socketId);
-      if (user) {
-        filteredRooms.push(room);
-      }
-    }
-    return filteredRooms;
-  }
-
-  async removeUserFromAllRooms(socketId: string): Promise<void> {
-    const rooms: RoomModel[] = await this.findRoomsByUserSocketId(socketId)
-    for (const room of rooms) {
-      await this.removeUserFromRoom(socketId, room.slug)
-    }
-  }
-
   async removeUserFromRoom(socketId: string, slug: string): Promise<void> {
     const room: RoomModel = await this.getRoom(slug)
     room.users = room.users.filter((user: User) => user.socketId !== socketId)

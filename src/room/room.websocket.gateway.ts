@@ -11,7 +11,7 @@ import {RedisService} from "../redis/service/redis.service";
 import {RoomService} from "./service/room.service";
 import {Message} from "./dto/room.dto";
 import {GameService} from "../game/service/game.service";
-import {SimpleUser} from "./room.model";
+import {SimpleUser, User} from "./room.model";
 
 
 @WebSocketGateway({cors: '*', namespace: 'room'})
@@ -47,11 +47,11 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
   @SubscribeMessage('joinRoom')
   async joinRoom(@ConnectedSocket() client: Socket): Promise<{}> {
     return this.handleAction(client.data.slug, async () => {
-      console.log("API joinRoom -> ", client.data.slug, client.data.user)
       await this.roomService.addUserToRoom(client.data.slug, client.data.user)
       client.join(client.data.slug);
       this.server.to(client.data.user.socketId).emit('cards', await this.gameService.getDeck(client.data.slug, client.data.user));
       this.server.to(client.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(client.data.slug));
+      this.server.to(client.data.slug).emit('board', await this.gameService.getBoard(client.data.slug));
       return {gameIsStarted: await this.roomService.gameIsStarted(client.data.slug)};
     });
   }
@@ -66,7 +66,13 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
   @SubscribeMessage('startGame')
   async startGame(@ConnectedSocket() client: Socket): Promise<{}> {
     return this.handleAction(client.data.slug, async () => {
-
+      const users: User[] = await this.gameService.startGame(client.data.slug, client.data.user);
+      for (const user of users) {
+        this.server.to(user.socketId).emit('cards', user.cards);
+      }
+      this.server.to(client.data.slug).emit('gameStarted', true); // broadcast messages gameStarted
+      this.server.to(client.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(client.data.slug));
+      return {gameIsStarted: await this.roomService.gameIsStarted(client.data.slug)};
     });
   }
 
