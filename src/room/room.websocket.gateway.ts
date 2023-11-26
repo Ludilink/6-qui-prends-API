@@ -11,7 +11,8 @@ import {RedisService} from "../redis/service/redis.service";
 import {RoomService} from "./service/room.service";
 import {Message} from "./dto/room.dto";
 import {GameService} from "../game/service/game.service";
-import {SimpleUser, User} from "./room.model";
+import {Play, SimpleUser, User} from "./room.model";
+import {Card} from "../script/Card";
 
 
 @WebSocketGateway({cors: '*', namespace: 'room'})
@@ -72,14 +73,25 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
       }
       this.server.to(client.data.slug).emit('gameStarted', true); // broadcast messages gameStarted
       this.server.to(client.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(client.data.slug));
+      this.server.to(client.data.slug).emit('board', await this.gameService.getBoard(client.data.slug));
       return {gameIsStarted: await this.roomService.gameIsStarted(client.data.slug)};
     });
   }
 
-  @SubscribeMessage('bet')
-  async bet(@ConnectedSocket() client: Socket, @MessageBody() bet: number): Promise<{}> {
+  @SubscribeMessage('play')
+  async play(@ConnectedSocket() client: Socket, @MessageBody() card: Card): Promise<{}> {
     return this.handleAction(client.data.slug, async () => {
-
+      await this.gameService.play(card, client.data.user, client.data.slug)
+      this.server.to(client.data.socketId).emit('cards', await this.gameService.getDeck(client.data.slug, client.data.user));
+      this.server.to(client.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(client.data.slug));
+      if (this.gameService.checkEveryonePlayed(client.data.slug)) {
+        let cards: Play[] = await this.gameService.sortCardsPlayed(client.data.slug);
+        for (const play of cards) {
+          setTimeout(async () => {
+            await this.gameService.playCard(play, client.data.slug);
+          });
+        }
+      }
     });
   }
 

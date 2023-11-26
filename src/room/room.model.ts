@@ -12,6 +12,10 @@ export interface RoomModel {
   board: Board;
 }
 
+export interface RoundModel {
+  cards: Play[]
+}
+
 export interface SimpleUser {
   userId: string
   username: string
@@ -42,5 +46,10 @@ export interface Board {
   slot2: Slot
   slot3: Slot
   slot4: Slot
+}
+
+export interface Play {
+  card: Card
+  user: User
 }
 

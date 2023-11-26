@@ -1,6 +1,6 @@
 import {Injectable} from '@nestjs/common';
 import {RedisService} from "../../redis/service/redis.service";
-import {RoomModel, User, UserInRoom, UserWithHost} from "../room.model";
+import {RoomModel, RoundModel, User, UserInRoom, UserWithHost} from "../room.model";
 import {HttpException} from "@nestjs/common/exceptions";
 import {WordsGlossaryService} from "../../words-glossary/service/words-glossary.service";
 
@@ -139,6 +139,21 @@ export class RoomService {
       currentRound: parseInt(roomData.currentRound, 10),
       board: JSON.parse(roomData.board)
     } as RoomModel;
+  }
+
+  async getRound(slug: string, round: number = null): Promise<RoundModel> {
+    const room: RoomModel = await this.getRoom(slug);
+    if (round == null) round = room.currentRound;
+    if (round > room.currentRound) throw new Error("La manche n'existe pas");
+    const roundData = await this.redisService.hgetall(`room:${slug}:${round}`);
+    if (!roundData) {
+      return {
+        cards: []
+      } as RoundModel;
+    }
+    return {
+      cards: JSON.parse(roundData.cards)
+    } as RoundModel;
   }
 
   async gameIsStarted(slug: string): Promise<boolean> {
