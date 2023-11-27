@@ -11,7 +11,7 @@ import {RedisService} from "../redis/service/redis.service";
 import {RoomService} from "./service/room.service";
 import {Message} from "./dto/room.dto";
 import {GameService} from "../game/service/game.service";
-import {Play, SimpleUser, User} from "./room.model";
+import {Play, User} from "./room.model";
 import {Card} from "../script/Card";
 
 
@@ -50,9 +50,7 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
     return this.handleAction(client.data.slug, async () => {
       await this.roomService.addUserToRoom(client.data.slug, client.data.user)
       client.join(client.data.slug);
-      this.server.to(client.data.user.socketId).emit('cards', await this.gameService.getDeck(client.data.slug, client.data.user));
-      this.server.to(client.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(client.data.slug));
-      this.server.to(client.data.slug).emit('board', await this.gameService.getBoard(client.data.slug));
+      await this.emitUpdate(client.data.slug, client);
       return {gameIsStarted: await this.roomService.gameIsStarted(client.data.slug)};
     });
   }
@@ -72,8 +70,7 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
         this.server.to(user.socketId).emit('cards', user.cards);
       }
       this.server.to(client.data.slug).emit('gameStarted', true); // broadcast messages gameStarted
-      this.server.to(client.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(client.data.slug));
-      this.server.to(client.data.slug).emit('board', await this.gameService.getBoard(client.data.slug));
+      await this.emitUpdate(client.data.slug, client);
       return {gameIsStarted: await this.roomService.gameIsStarted(client.data.slug)};
     });
   }
@@ -82,17 +79,18 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
   async play(@ConnectedSocket() client: Socket, @MessageBody() card: Card): Promise<{}> {
     return this.handleAction(client.data.slug, async () => {
       await this.gameService.play(card, client.data.user, client.data.slug);
-      this.server.to(client.data.user.socketId).emit('cards', await this.gameService.getDeck(client.data.slug, client.data.user));
-      this.server.to(client.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(client.data.slug));
+      await this.emitUpdate(client.data.slug, client);
       if (await this.gameService.checkEveryonePlayed(client.data.slug)) {
-        let cards: Play[] = await this.gameService.sortCardsPlayed(client.data.slug);
-        for (const play of cards) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          await this.gameService.playCard(play, client.data.slug);
-          this.server.to(client.data.slug).emit('board', await this.gameService.getBoard(client.data.slug));
-        }
-        this.server.to(client.data.slug).emit('board', await this.gameService.getBoard(client.data.slug));
+        await this.roundTurn(client);
       }
+    });
+  }
+
+  @SubscribeMessage('chooseSlot')
+  async chooseSlot(@ConnectedSocket() client: Socket, @MessageBody() slotIndex: number): Promise<{}> {
+    return this.handleAction(client.data.slug, async () => {
+      await this.gameService.chooseSlot(slotIndex, client.data.slug, client.data.user);
+      await this.roundTurn(client);
     });
   }
 
@@ -108,5 +106,26 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
         error: e.message,
       }
     }
+  }
+
+  async emitUpdate(slug: string, client: Socket) {
+    this.server.to(slug).emit('members', await this.roomService.usersWithoutCardsInRoom(slug));
+    this.server.to(slug).emit('board', await this.gameService.getBoard(slug));
+    this.server.to(client.data.user.socketId).emit('cards', await this.gameService.getDeck(client.data.slug, client.data.user));
+    this.server.to(slug).emit('playerHasToPlay', await this.gameService.getPlayerHasToPlay(slug));
+  }
+
+  async roundTurn(client: Socket): Promise<void> {
+    let cards: Play[] = await this.gameService.sortCardsPlayed(client.data.slug);
+    for (const play of cards) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      let gamePaused: boolean = await this.gameService.playCard(play, client.data.slug);
+      if (gamePaused) {
+        return;
+      }
+      await this.emitUpdate(client.data.slug, client);
+    }
+    await this.gameService.startRound(client.data.slug);
+    await this.emitUpdate(client.data.slug, client);
   }
 }

@@ -1,6 +1,6 @@
 import {Injectable} from "@nestjs/common";
 import {Card} from "../../script/Card";
-import {Board, Play, RoomModel, RoundModel, User} from "../../room/room.model";
+import {Board, GameStatus, Play, RoomModel, RoundModel, User, UserInRoom} from "../../room/room.model";
 import {RedisService} from "../../redis/service/redis.service";
 import {RoomService} from "../../room/service/room.service";
 import cards from "../../script/cards";
@@ -27,12 +27,12 @@ export class GameService {
     const room = await this.roomService.getRoom(slug);
     if (room.host.userId != user.userId) throw new Error("Vous n'êtes pas le créateur de la room");
     if (room.currentPlayers < 2) throw new Error("Il n'y a pas assez de joueurs");
-    if (room.started == true) throw new Error("La partie à déjà commencé");
+    if (room.status != GameStatus.UNSTARTED) throw new Error("La partie à déjà commencé");
     const fullCards: Card[] = await this.flushCards(room.currentPlayers);
     for (const [index, user] of room.users.entries()) {
       user.cards = fullCards.slice(index * 10, (index + 1) * 10);
       user.hasToPlay = true;
-      user.cardsLost = [];
+      user.bullsLost = 0;
     }
     room.board = {
       slot1: {
@@ -49,7 +49,7 @@ export class GameService {
       },
     }
     await this.newRound(slug);
-    await this.redisService.hset(`room:${slug}`, ['started', 'true', 'users', JSON.stringify(room.users), 'board', JSON.stringify(room.board)]);
+    await this.redisService.hset(`room:${slug}`, ['status', GameStatus.CHOOSE_CARD, 'users', JSON.stringify(room.users), 'board', JSON.stringify(room.board)]);
     return room.users;
   }
 
@@ -67,7 +67,7 @@ export class GameService {
     const room: RoomModel = await this.roomService.getRoom(slug);
     const round: RoundModel = await this.roomService.getRound(slug, room.currentRound);
     user = room.users.find((elem: User) => elem.userId == user.userId);
-    if (!room.started) throw new Error("La partie n'a pas commencé");
+    if (room.status == GameStatus.UNSTARTED) throw new Error("La partie n'a pas commencé");
     if (!user.hasToPlay) throw new Error("Tu as déjà jouer");
     if (!this.cardInDeck(card, user.cards)) throw new Error("Tu n'as pas cette carte");
     let play: Play = {
@@ -80,19 +80,55 @@ export class GameService {
     await this.redisService.hset(`room:${slug}`, ['users', JSON.stringify(room.users)]);
   }
 
-  async playCard(play: Play, slug: string) {
+  async playCard(play: Play, slug: string): Promise<boolean> {
     const room: RoomModel = await this.roomService.getRoom(slug);
     const round: RoundModel = await this.roomService.getRound(slug, room.currentRound);
+    if (room.status != GameStatus.CHOOSE_CARD) throw new Error("Ce n'est pas le moment de jouer");
     let slotIndex = await this.selectSlot(room.board, play.card);
     if (slotIndex > 0) {
       if (await this.checkSlotFull(slotIndex, slug)) {
-        // donner le choix au joueur de prendre le slot qu'il veut
-        // a faire
+        let allBulls: number = 0;
+        for (const card of room.board[`slot${slotIndex}`].cards) {
+          allBulls += card.bullPoints;
+        }
+        room.users.find((elem: User) => elem.userId == play.user.userId).bullsLost = room.users.find((elem: User) => elem.userId == play.user.userId).bullsLost + allBulls;
+        room.board[`slot${slotIndex}`].cards = [play.card];
+        await this.redisService.hset(`room:${slug}`, ['users', JSON.stringify(room.users), 'board', JSON.stringify(room.board)]);
       } else {
         room.board[`slot${slotIndex}`].cards = [...room.board[`slot${slotIndex}`].cards, play.card];
         await this.redisService.hset(`room:${slug}`, ['board', JSON.stringify(room.board)]);
       }
+      round.cards.filter((elem: Play) => elem.card.id != play.card.id);
+      await this.redisService.hset(`room:${slug}:${room.currentRound}`, ['cards', JSON.stringify(round.cards)]);
+      return false;
+    } else {
+      await this.redisService.hset(`room:${slug}`, ['playerHasToPlay', JSON.stringify(play.user), 'status', GameStatus.CHOOSE_SLOT]);
+      return true;
     }
+  }
+
+  async startRound(slug: string) {
+    const room: RoomModel = await this.roomService.getRoom(slug);
+    room.status = GameStatus.CHOOSE_CARD;
+    for (const [_, user] of room.users.entries()) {
+      user.hasToPlay = true;
+    }
+    await this.redisService.hset(`room:${slug}`, ['status', GameStatus.CHOOSE_CARD, 'users', JSON.stringify(room.users), 'currentRound', (room.currentRound + 1).toString()]);
+  }
+
+  async chooseSlot(index: number, slug: string, user: UserInRoom) {
+    const room: RoomModel = await this.roomService.getRoom(slug);
+    const round: RoundModel = await this.roomService.getRound(slug);
+    if (user.userId !== room.playerHasToPlay.userId) throw new Error("Ce n'est pas à toi de jouer");
+    let allBulls: number = 0;
+    for (const card of room.board[`slot${index}`].cards) {
+      allBulls += card.bulls;
+    }
+    room.users.find((elem: User) => elem.userId == user.userId).bullsLost = room.users.find((elem: User) => elem.userId == user.userId).bullsLost + allBulls;
+    room.board[`slot${index}`].cards = [round.cards[round.cards.length - 1]];
+    round.cards = round.cards.filter((elem: Play) => elem.card.id != round.cards[round.cards.length - 1].card.id);
+    await this.redisService.hset(`room:${slug}`, ['users', JSON.stringify(room.users), 'board', JSON.stringify(room.board), 'playerHasToPlay', JSON.stringify(null)]);
+    await this.redisService.hset(`room:${slug}:${room.currentRound}`, ['cards', JSON.stringify(round.cards)]);
   }
 
   // a refacto
@@ -128,6 +164,11 @@ export class GameService {
   async getDeck(slug: string, user: User): Promise<Card[]> {
     const room: RoomModel = await this.roomService.getRoom(slug);
     return room.users.find((elem: User) => elem.username == user.username).cards;
+  }
+
+  async getPlayerHasToPlay(slug: string): Promise<UserInRoom> {
+    const room: RoomModel = await this.roomService.getRoom(slug);
+    return room.playerHasToPlay;
   }
 
   async getBoard(slug: string): Promise<Board> {

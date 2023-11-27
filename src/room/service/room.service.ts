@@ -1,6 +1,6 @@
 import {Injectable} from '@nestjs/common';
 import {RedisService} from "../../redis/service/redis.service";
-import {RoomModel, RoundModel, User, UserInRoom, UserWithHost} from "../room.model";
+import {GameStatus, RoomModel, RoundModel, User, UserInRoom, UserWithHost} from "../room.model";
 import {HttpException} from "@nestjs/common/exceptions";
 import {WordsGlossaryService} from "../../words-glossary/service/words-glossary.service";
 
@@ -18,7 +18,7 @@ export class RoomService {
       ...host,
       cards: [],
       hasToPlay: true,
-      cardsLost: [],
+      bullsLost: 0,
     }
     const room: RoomModel = {
       slug: await this.wordGlossaryService.GetThreeWord(),
@@ -27,7 +27,8 @@ export class RoomService {
       password: password,
       users: [user],
       host: host,
-      started: false,
+      status: GameStatus.UNSTARTED,
+      playerHasToPlay: null,
       currentRound: 0,
       board: {
         slot1: {
@@ -57,9 +58,10 @@ export class RoomService {
       'users', JSON.stringify(room.users),
       'host', JSON.stringify(room.host),
       'slug', room.slug,
-      'started', room.started.toString(),
+      'status', room.status.toString(),
       'currentRound', '0',
-      'board', JSON.stringify(room.board)
+      'board', JSON.stringify(room.board),
+      'playerHasToPlay', JSON.stringify(room.playerHasToPlay),
     ]);
     return room;
   }
@@ -78,7 +80,7 @@ export class RoomService {
   async addUserToRoom(slug: string, user: User): Promise<void> {
     const room: RoomModel = await this.getRoom(slug);
     if (room) {
-      if (room.started == true && !room.users.find((element: User) => user.userId == element.userId)) throw new Error("La partie à déjà commencé");
+      if (room.status != GameStatus.UNSTARTED && !room.users.find((element: User) => user.userId == element.userId)) throw new Error("La partie à déjà commencé");
       if (room.currentPlayers >= room.maxPlayers && !room.users.find((element: User) => user.userId === element.userId)) throw new Error("La room est pleine");
       if (room.host.userId == user.userId) {
         let host = room.users.find((element: User) => element.userId == user.userId)
@@ -114,9 +116,10 @@ export class RoomService {
         password: roomData.password || '',
         users: JSON.parse(roomData.users || '[]'),
         host: JSON.parse(roomData.host),
-        started: roomData.started == 'true',
+        status: roomData.status as GameStatus,
         currentRound: parseInt(roomData.currentRound, 10),
-        board: JSON.parse(roomData.board)
+        board: JSON.parse(roomData.board),
+        playerHasToPlay: JSON.parse(roomData.playerHasToPlay),
       };
       rooms.push(room);
     }
@@ -135,9 +138,10 @@ export class RoomService {
       password: roomData.password || '',
       users: JSON.parse(roomData.users || '[]'),
       host: JSON.parse(roomData.host),
-      started: roomData.started == 'true',
+      status: roomData.status as GameStatus,
       currentRound: parseInt(roomData.currentRound, 10),
-      board: JSON.parse(roomData.board)
+      board: JSON.parse(roomData.board),
+      playerHasToPlay: JSON.parse(roomData.playerHasToPlay),
     } as RoomModel;
   }
 
@@ -145,12 +149,12 @@ export class RoomService {
     const room: RoomModel = await this.getRoom(slug);
     if (round == null) round = room.currentRound;
     if (round > room.currentRound) throw new Error("La manche n'existe pas");
-    const roundData = await this.redisService.hgetall(`room:${slug}:${round}`);
-    if (!roundData) {
+    if (await this.redisService.exists(`room:${slug}:${round}`) == 0) {
       return {
         cards: []
       } as RoundModel;
     }
+    const roundData = await this.redisService.hgetall(`room:${slug}:${round}`);
     return {
       cards: JSON.parse(roundData.cards)
     } as RoundModel;
@@ -158,7 +162,7 @@ export class RoomService {
 
   async gameIsStarted(slug: string): Promise<boolean> {
     const room: RoomModel = await this.getRoom(slug);
-    return room.started;
+    return room.status != GameStatus.UNSTARTED;
   }
 
   async usersWithoutCardsInRoom(slug: string): Promise<UserInRoom[]> {

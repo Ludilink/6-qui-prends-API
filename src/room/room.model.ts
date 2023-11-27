@@ -7,7 +7,8 @@ export interface RoomModel {
   maxPlayers: number;
   currentPlayers: number;
   host: UserInRoom;
-  started: boolean;
+  status: GameStatus;
+  playerHasToPlay: UserInRoom | null;
   currentRound: number;
   board: Board;
 }
@@ -30,7 +31,7 @@ export interface UserInRoom {
 
 export interface User extends UserInRoom {
   cards: Card[]
-  cardsLost?: Card[]
+  bullsLost?: number
 }
 
 export interface UserWithHost extends UserInRoom {
@@ -51,5 +52,11 @@ export interface Board {
 export interface Play {
   card: Card
   user: User
+}
+
+export enum GameStatus {
+  UNSTARTED = 'UNSTARTED',
+  CHOOSE_CARD = 'CHOOSE_CARD',
+  CHOOSE_SLOT = 'CHOOSE_SLOT',
 }
 
