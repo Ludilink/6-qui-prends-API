@@ -75,10 +75,8 @@ export class GameService {
       user: user
     }
     await this.redisService.hset(`room:${slug}:${room.currentRound}`, ['cards', JSON.stringify([...round.cards, play])]);
-    console.log("AFTER room.users -> ", room.users);
     user.cards = this.removeCardOnDeck(card, user.cards);
     user.hasToPlay = false;
-    console.log("AFTER room.users -> ", room.users);
     await this.redisService.hset(`room:${slug}`, ['users', JSON.stringify(room.users)]);
   }
 
@@ -88,9 +86,10 @@ export class GameService {
     let slotIndex = await this.selectSlot(room.board, play.card);
     if (slotIndex > 0) {
       if (await this.checkSlotFull(slotIndex, slug)) {
-
+        // donner le choix au joueur de prendre le slot qu'il veut
+        // a faire
       } else {
-        room.board[`slot${slotIndex}`].cards.push(play.card);
+        room.board[`slot${slotIndex}`].cards = [...room.board[`slot${slotIndex}`].cards, play.card];
         await this.redisService.hset(`room:${slug}`, ['board', JSON.stringify(room.board)]);
       }
     }

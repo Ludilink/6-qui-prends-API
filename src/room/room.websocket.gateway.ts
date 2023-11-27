@@ -81,16 +81,17 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
   @SubscribeMessage('play')
   async play(@ConnectedSocket() client: Socket, @MessageBody() card: Card): Promise<{}> {
     return this.handleAction(client.data.slug, async () => {
-      await this.gameService.play(card, client.data.user, client.data.slug)
-      this.server.to(client.data.socketId).emit('cards', await this.gameService.getDeck(client.data.slug, client.data.user));
+      await this.gameService.play(card, client.data.user, client.data.slug);
+      this.server.to(client.data.user.socketId).emit('cards', await this.gameService.getDeck(client.data.slug, client.data.user));
       this.server.to(client.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(client.data.slug));
-      if (this.gameService.checkEveryonePlayed(client.data.slug)) {
+      if (await this.gameService.checkEveryonePlayed(client.data.slug)) {
         let cards: Play[] = await this.gameService.sortCardsPlayed(client.data.slug);
         for (const play of cards) {
-          setTimeout(async () => {
-            await this.gameService.playCard(play, client.data.slug);
-          });
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await this.gameService.playCard(play, client.data.slug);
+          this.server.to(client.data.slug).emit('board', await this.gameService.getBoard(client.data.slug));
         }
+        this.server.to(client.data.slug).emit('board', await this.gameService.getBoard(client.data.slug));
       }
     });
   }
