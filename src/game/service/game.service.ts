@@ -102,7 +102,7 @@ export class GameService {
       await this.redisService.hset(`room:${slug}:${room.currentRound}`, ['cards', JSON.stringify(round.cards)]);
       return false;
     } else {
-      console.log("Player has to play -> ", play.user)
+      console.log("playCard -> ", play)
       await this.redisService.hset(`room:${slug}`, ['playerHasToPlay', JSON.stringify(play.user), 'status', GameStatus.CHOOSE_SLOT]);
       return true;
     }
@@ -120,15 +120,16 @@ export class GameService {
   async chooseSlot(index: number, slug: string, user: UserInRoom) {
     const room: RoomModel = await this.roomService.getRoom(slug);
     const round: RoundModel = await this.roomService.getRound(slug);
+    if (room.status !== GameStatus.CHOOSE_SLOT) throw new Error("Ce n'est pas le moment de choisir un slot");
     if (user.userId !== room.playerHasToPlay.userId) throw new Error("Ce n'est pas à toi de jouer");
     let allBulls: number = 0;
     for (const card of room.board[`slot${index}`].cards) {
-      allBulls += card.bulls;
+      allBulls += card.bullPoints;
     }
     room.users.find((elem: User) => elem.userId == user.userId).bullsLost = room.users.find((elem: User) => elem.userId == user.userId).bullsLost + allBulls;
-    room.board[`slot${index}`].cards = [round.cards[round.cards.length - 1]];
-    round.cards = round.cards.filter((elem: Play) => elem.card.id != round.cards[round.cards.length - 1].card.id);
-    await this.redisService.hset(`room:${slug}`, ['users', JSON.stringify(room.users), 'board', JSON.stringify(room.board), 'playerHasToPlay', JSON.stringify(null)]);
+    room.board[`slot${index}`].cards = [round.cards[0].card];
+    round.cards.shift();
+    await this.redisService.hset(`room:${slug}`, ['users', JSON.stringify(room.users), 'board', JSON.stringify(room.board), 'playerHasToPlay', JSON.stringify(null), 'status', GameStatus.CHOOSE_CARD]);
     await this.redisService.hset(`room:${slug}:${room.currentRound}`, ['cards', JSON.stringify(round.cards)]);
   }
 
