@@ -8,7 +8,7 @@ export interface RoomModel {
   currentPlayers: number;
   host: UserInRoom;
   status: GameStatus;
-  playerHasToPlay: UserInRoom | null;
+  playerHasToPlay: User | null;
   currentRound: number;
   board: Board;
 }

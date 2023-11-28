@@ -102,6 +102,7 @@ export class GameService {
       await this.redisService.hset(`room:${slug}:${room.currentRound}`, ['cards', JSON.stringify(round.cards)]);
       return false;
     } else {
+      console.log("Player has to play -> ", play.user)
       await this.redisService.hset(`room:${slug}`, ['playerHasToPlay', JSON.stringify(play.user), 'status', GameStatus.CHOOSE_SLOT]);
       return true;
     }

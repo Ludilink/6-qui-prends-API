@@ -112,6 +112,7 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
     this.server.to(slug).emit('members', await this.roomService.usersWithoutCardsInRoom(slug));
     this.server.to(slug).emit('board', await this.gameService.getBoard(slug));
     this.server.to(client.data.user.socketId).emit('cards', await this.gameService.getDeck(client.data.slug, client.data.user));
+    console.log("playerHasToPlay -> ", await this.gameService.getPlayerHasToPlay(slug));
     this.server.to(slug).emit('playerHasToPlay', await this.gameService.getPlayerHasToPlay(slug));
   }
 
@@ -120,10 +121,10 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
     for (const play of cards) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       let gamePaused: boolean = await this.gameService.playCard(play, client.data.slug);
+      await this.emitUpdate(client.data.slug, client);
       if (gamePaused) {
         return;
       }
-      await this.emitUpdate(client.data.slug, client);
     }
     await this.gameService.startRound(client.data.slug);
     await this.emitUpdate(client.data.slug, client);
