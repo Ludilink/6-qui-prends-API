@@ -90,7 +90,7 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
   async chooseSlot(@ConnectedSocket() client: Socket, @MessageBody() slotIndex: number): Promise<{}> {
     return this.handleAction(client.data.slug, async () => {
       await this.gameService.chooseSlot(slotIndex, client.data.slug, client.data.user);
-      await this.emitUpdate(client.data.slug, client)
+      await this.emitUpdate(client.data.slug, client);
       await this.roundTurn(client);
     });
   }
@@ -125,6 +125,9 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
       if (gamePaused) {
         return;
       }
+    }
+    if (await this.gameService.checkEnd(client.data.slug)) {
+
     }
     await this.gameService.startRound(client.data.slug);
     await this.emitUpdate(client.data.slug, client);

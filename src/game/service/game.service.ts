@@ -188,6 +188,16 @@ export class GameService {
     return room.board[`slot${slotIndex}`].cards.length == 5;
   }
 
+  async checkEnd(slug: string): Promise<boolean> {
+    const room: RoomModel = await this.roomService.getRoom(slug);
+    const round: RoundModel = await this.roomService.getRound(slug, room.currentRound);
+    if (await this.redisService.exists(`room:${slug}:10`) == 0 || room.currentRound != 10) {
+      return false;
+    }
+    return room.users.length === round.cards.length;
+
+  }
+
   async sortCardsPlayed(slug: string): Promise<Play[]> {
     const room: RoomModel = await this.roomService.getRoom(slug);
     const round: RoundModel = await this.roomService.getRound(slug, room.currentRound);
