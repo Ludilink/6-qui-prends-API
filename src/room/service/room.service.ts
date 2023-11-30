@@ -82,6 +82,7 @@ export class RoomService {
   async addUserToRoom(slug: string, user: User): Promise<void> {
     const room: RoomModel = await this.getRoom(slug);
     if (room) {
+      if (!user.userId) throw new Error("Tu n'es pas connecté !");
       if (room.status != GameStatus.UNSTARTED && !room.users.find((element: User) => user.userId == element.userId)) throw new Error("La partie à déjà commencé");
       if (room.currentPlayers >= room.maxPlayers && !room.users.find((element: User) => user.userId === element.userId)) throw new Error("La room est pleine");
       if (room.host.userId == user.userId) {

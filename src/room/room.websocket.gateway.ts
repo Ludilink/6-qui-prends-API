@@ -28,9 +28,9 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
 
   handleConnection(socket: Socket): void {
     socket.data.user = {
-      userId: socket.handshake.query.userId as string,
+      userId: socket.handshake.query?.userId as string,
       socketId: socket.id,
-      username: socket.handshake.query.username as string,
+      username: socket.handshake.query?.username as string,
     };
     socket.data.slug = socket.handshake.query.slug as string
     console.log(`New connecting... socket id:`, socket.id);
