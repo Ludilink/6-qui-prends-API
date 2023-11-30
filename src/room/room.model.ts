@@ -27,11 +27,11 @@ export interface UserInRoom {
   username: string
   socketId: string
   hasToPlay: boolean
+  bullsLost?: number
 }
 
 export interface User extends UserInRoom {
   cards: Card[]
-  bullsLost?: number
 }
 
 export interface UserWithHost extends UserInRoom {
@@ -58,5 +58,6 @@ export enum GameStatus {
   UNSTARTED = 'UNSTARTED',
   CHOOSE_CARD = 'CHOOSE_CARD',
   CHOOSE_SLOT = 'CHOOSE_SLOT',
+  END_GAME = 'END_GAME'
 }
 

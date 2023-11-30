@@ -51,7 +51,7 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
       await this.roomService.addUserToRoom(client.data.slug, client.data.user)
       client.join(client.data.slug);
       await this.emitUpdate(client.data.slug, client);
-      return {gameIsStarted: await this.roomService.gameIsStarted(client.data.slug)};
+      return {gameStatus: await this.roomService.gameStatus(client.data.slug)};
     });
   }
 
@@ -71,7 +71,7 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
       }
       this.server.to(client.data.slug).emit('gameStarted', true); // broadcast messages gameStarted
       await this.emitUpdate(client.data.slug, client);
-      return {gameIsStarted: await this.roomService.gameIsStarted(client.data.slug)};
+      return {gameStatus: await this.roomService.gameStatus(client.data.slug)};
     });
   }
 
@@ -127,9 +127,11 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
       }
     }
     if (await this.gameService.checkEnd(client.data.slug)) {
-
+      await this.gameService.endGame(client.data.slug);
+      this.server.to(client.data.slug).emit('winners', await this.gameService.getClassement(client.data.slug));
+    } else {
+      await this.gameService.startRound(client.data.slug);
+      await this.emitUpdate(client.data.slug, client);
     }
-    await this.gameService.startRound(client.data.slug);
-    await this.emitUpdate(client.data.slug, client);
   }
 }

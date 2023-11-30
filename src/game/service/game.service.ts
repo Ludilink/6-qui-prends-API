@@ -102,7 +102,6 @@ export class GameService {
       await this.redisService.hset(`room:${slug}:${room.currentRound}`, ['cards', JSON.stringify(round.cards)]);
       return false;
     } else {
-      console.log("playCard -> ", play)
       await this.redisService.hset(`room:${slug}`, ['playerHasToPlay', JSON.stringify(play.user), 'status', GameStatus.CHOOSE_SLOT]);
       return true;
     }
@@ -155,6 +154,16 @@ export class GameService {
     return slotIndex;
   }
 
+  async endGame(slug: string): Promise<void> {
+    await this.redisService.hset(`room:${slug}`, ['status', GameStatus.END_GAME]);
+  }
+
+  async getClassement(slug: string): Promise<User[]> {
+    const room: RoomModel = await this.roomService.getRoom(slug);
+    room.users.sort((a: User, b: User) => b.bullsLost - a.bullsLost);
+    return room.users;
+  }
+
   cardInDeck(card: Card, deck: Card[]): boolean {
     return !!deck.find((elem: Card) => elem.id == card.id);
   }
@@ -190,12 +199,7 @@ export class GameService {
 
   async checkEnd(slug: string): Promise<boolean> {
     const room: RoomModel = await this.roomService.getRoom(slug);
-    const round: RoundModel = await this.roomService.getRound(slug, room.currentRound);
-    if (await this.redisService.exists(`room:${slug}:10`) == 0 || room.currentRound != 10) {
-      return false;
-    }
-    return room.users.length === round.cards.length;
-
+    return !(await this.redisService.exists(`room:${slug}:10`) == 0 || room.currentRound != 10);
   }
 
   async sortCardsPlayed(slug: string): Promise<Play[]> {

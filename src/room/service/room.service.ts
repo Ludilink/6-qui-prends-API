@@ -160,9 +160,9 @@ export class RoomService {
     } as RoundModel;
   }
 
-  async gameIsStarted(slug: string): Promise<boolean> {
+  async gameStatus(slug: string): Promise<string> {
     const room: RoomModel = await this.getRoom(slug);
-    return room.status != GameStatus.UNSTARTED;
+    return room.status == GameStatus.CHOOSE_CARD || room.status == GameStatus.CHOOSE_SLOT ? 'STARTED' : room.status;
   }
 
   async usersWithoutCardsInRoom(slug: string): Promise<UserInRoom[]> {
@@ -178,6 +178,7 @@ export class RoomService {
         socketId: user.socketId,
         isHost: user.userId === room.host.userId,
         hasToPlay: user.hasToPlay,
+        bullsLost: user.bullsLost,
       }
     }) as UserWithHost[];
   }
