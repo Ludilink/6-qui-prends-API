@@ -209,5 +209,10 @@ export class GameService {
     await this.redisService.hset(`room:${slug}:${room.currentRound}`, ['cards', JSON.stringify(round.cards)]);
     return round.cards;
   }
+
+  // To add in the future stats with hub
+  async addStats(slug: string): Promise<void> {
+    return;
+  }
 }
 

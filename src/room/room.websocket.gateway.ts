@@ -13,6 +13,7 @@ import {Message} from "./dto/room.dto";
 import {GameService} from "../game/service/game.service";
 import {Play, User} from "./room.model";
 import {Card} from "../script/Card";
+import * as schedule from 'node-schedule';
 
 
 @WebSocketGateway({cors: '*', namespace: 'room'})
@@ -36,8 +37,18 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
   }
 
   handleDisconnect(socket: Socket): void {
-    // gerer le cas si disconnect pendant une partie
+    if (!this.server.adapter.rooms.get(socket.data.slug)) {
+      schedule.scheduleJob(new Date(Date.now() + 10 * 60 * 1000), async () => {
+        await this.deleteRoom(socket)
+      });
+    }
     console.log(`Disconnecting... socket id:`, socket.id);
+  }
+
+  async deleteRoom(socket: Socket) {
+    if (!this.server.adapter.rooms.get(socket.data.slug)) {
+      await this.roomService.closeRoom(socket.data.slug);
+    }
   }
 
   @SubscribeMessage('leaveRoom')
@@ -129,6 +140,8 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
     if (await this.gameService.checkEnd(client.data.slug)) {
       await this.gameService.endGame(client.data.slug);
       this.server.to(client.data.slug).emit('winners', await this.gameService.getClassement(client.data.slug));
+      await this.gameService.addStats(client.data.slug);
+      await this.roomService.closeRoom(client.data.slug);
     } else {
       await this.gameService.startRound(client.data.slug);
       await this.emitUpdate(client.data.slug, client);

@@ -67,14 +67,16 @@ export class RoomService {
   }
 
   async closeRoom(slug: string): Promise<{}> {
-    const roomKey: string = `room:${slug}`;
-    if (await this.redisService.exists(roomKey) == 0) {
-      throw new HttpException("La room n'existe pas", 404);
+    const roomKeys: string[] = await this.redisService.keys(`room:${slug}*`);
+    for (const roomKey of roomKeys) {
+      if (await this.redisService.exists(roomKey) == 0) {
+        continue;
+      }
+      await this.redisService.del(roomKey);
     }
-    await this.redisService.del(roomKey);
     return {
-      message: `La room ${slug} à été supprimé`
-    }
+      message: `La room ${slug} a bien été supprimée`
+    };
   }
 
   async addUserToRoom(slug: string, user: User): Promise<void> {
