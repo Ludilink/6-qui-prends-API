@@ -36,7 +36,9 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
     console.log(`New connecting... socket id:`, socket.id);
   }
 
-  handleDisconnect(socket: Socket): void {
+  async handleDisconnect(socket: Socket): Promise<void> {
+    await this.roomService.setOffline(socket.data.slug, socket.data.user);
+    this.server.to(socket.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(socket.data.slug));
     if (!this.server.adapter.rooms.get(socket.data.slug)) {
       schedule.scheduleJob(new Date(Date.now() + 10 * 60 * 1000), async () => {
         await this.deleteRoom(socket)
@@ -53,8 +55,22 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
 
   @SubscribeMessage('leaveRoom')
   async leaveRoom(@ConnectedSocket() client: Socket) {
+    await this.roomService.setOffline(client.data.slug, client.data.user);
     this.server.to(client.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(client.data.slug));
+    return {
+      message: "Vous avez quitté la room",
+    }
   }
+
+  @SubscribeMessage('quitRoom')
+  async quitRoom(@ConnectedSocket() client: Socket) {
+    await this.roomService.removeUserFromRoom(client.data.slug, client.data.user);
+    this.server.to(client.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(client.data.slug));
+    return {
+      message: "Vous avez quitté la room",
+    }
+  }
+
 
   @SubscribeMessage('joinRoom')
   async joinRoom(@ConnectedSocket() client: Socket): Promise<{}> {

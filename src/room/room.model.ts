@@ -28,6 +28,7 @@ export interface UserInRoom {
   socketId: string
   hasToPlay: boolean
   bullsLost?: number
+  status: 'Online' | 'Offline'
 }
 
 export interface User extends UserInRoom {

@@ -88,12 +88,15 @@ export class RoomService {
       if (room.host.userId == user.userId) {
         let host = room.users.find((element: User) => element.userId == user.userId)
         if (!host) room.users.push(user)
-        else host.socketId = user.socketId
+        else host.socketId = user.socketId;
+        host.status = 'Online';
         await this.redisService.hset(`room:${slug}`, ['host', JSON.stringify(user), 'users', JSON.stringify(room.users)]);
       } else if (room.users.find((element: User) => element.userId == user.userId)) {
         room.users.find((element: User) => element.userId == user.userId).socketId = user.socketId;
+        room.users.find((element: User) => element.userId == user.userId).status = 'Online';
         await this.redisService.hset(`room:${slug}`, ['users', JSON.stringify(room.users)]);
       } else {
+        user.status = 'Online';
         await this.redisService.hset(`room:${slug}`, ['users', JSON.stringify([...room.users, user]), 'currentPlayers', (room.currentPlayers + 1).toString()]);
       }
     } else {
@@ -101,32 +104,10 @@ export class RoomService {
     }
   }
 
-  async removeUserFromRoom(socketId: string, slug: string): Promise<void> {
+  async removeUserFromRoom(slug: string, userId: string): Promise<void> {
     const room: RoomModel = await this.getRoom(slug)
-    room.users = room.users.filter((user: User) => user.socketId !== socketId)
-    await this.redisService.hset(`room:${slug}`, ['users', JSON.stringify(room.users), 'currentPlayers', (room.currentPlayers - 1).toString()]);
-  }
-
-  async getRooms(): Promise<RoomModel[]> {
-    const roomKeys: string[] = await this.redisService.keys('room:*');
-    const rooms: RoomModel[] = [];
-    for (const roomKey of roomKeys) {
-      const roomData = await this.redisService.hgetall(roomKey);
-      const room: RoomModel = {
-        slug: roomData.slug,
-        maxPlayers: parseInt(roomData.maxPlayers, 10),
-        currentPlayers: parseInt(roomData.currentPlayers, 10),
-        password: roomData.password || '',
-        users: JSON.parse(roomData.users || '[]'),
-        host: JSON.parse(roomData.host),
-        status: roomData.status as GameStatus,
-        currentRound: parseInt(roomData.currentRound, 10),
-        board: JSON.parse(roomData.board),
-        playerHasToPlay: JSON.parse(roomData.playerHasToPlay),
-      };
-      rooms.push(room);
-    }
-    return rooms;
+    room.users = room.users.filter((elem: User) => elem.userId !== userId)
+    await this.redisService.hset(`room:${slug}`, ['users', JSON.stringify(room.users), 'currentPlayers', room.users.length.toString()]);
   }
 
   async getRoom(slug: string): Promise<RoomModel> {
@@ -182,15 +163,22 @@ export class RoomService {
         isHost: user.userId === room.host.userId,
         hasToPlay: user.hasToPlay,
         bullsLost: user.bullsLost,
+        status: user.status
       }
     }) as UserWithHost[];
+  }
+
+  async setOffline(slug: string, user: User): Promise<void> {
+    const room: RoomModel = await this.getRoom(slug);
+    room.users.find((elem: User) => user.userId === elem.userId).status = 'Offline';
+    await this.redisService.hset(`room:${slug}`, ['users', JSON.stringify(room.users)]);
   }
 
   async kickUser(slug: string, userId: string): Promise<void> {
     const room: RoomModel = await this.getRoom(slug);
     const user: User = room.users.find((user: User) => user.userId === userId);
     if (!user) throw new HttpException(`L'utilisateur ${userId} n'existe pas dans la room`, 404);
-    await this.removeUserFromRoom(user.socketId, slug);
+    await this.removeUserFromRoom(slug, userId);
   }
 }
 

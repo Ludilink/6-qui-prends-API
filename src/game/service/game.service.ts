@@ -33,6 +33,7 @@ export class GameService {
       user.cards = fullCards.slice(index * 10, (index + 1) * 10);
       user.hasToPlay = true;
       user.bullsLost = 0;
+      user.status = 'Online';
     }
     room.board = {
       slot1: {
