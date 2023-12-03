@@ -14,7 +14,11 @@ export class RoomController {
   @UsePipes(ValidationPipe)
   @Post('')
   async createRoom(@Body() roomCreated: CreatedRoomDto): Promise<{}> {
-    return await this.roomService.createRoom(roomCreated.maxPlayers, roomCreated.host, roomCreated?.password ?? null);
+    try {
+      return await this.roomService.createRoom(roomCreated.maxPlayers, roomCreated.host, roomCreated?.password ?? null);
+    } catch (e) {
+      throw new HttpException(e.message, e.status)
+    }
   }
 
   @Delete('/:slug/close')

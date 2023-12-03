@@ -55,20 +55,24 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
 
   @SubscribeMessage('leaveRoom')
   async leaveRoom(@ConnectedSocket() client: Socket) {
-    await this.roomService.setOffline(client.data.slug, client.data.user);
-    this.server.to(client.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(client.data.slug));
-    return {
-      message: "Vous avez quitté la room",
-    }
+    return this.handleAction(client.data.slug, async () => {
+      await this.roomService.setOffline(client.data.slug, client.data.user);
+      this.server.to(client.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(client.data.slug));
+      return {
+        message: "Vous avez quitté la room",
+      }
+    });
   }
 
   @SubscribeMessage('quitRoom')
   async quitRoom(@ConnectedSocket() client: Socket) {
-    await this.roomService.removeUserFromRoom(client.data.slug, client.data.user);
-    this.server.to(client.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(client.data.slug));
-    return {
-      message: "Vous avez quitté la room",
-    }
+    return this.handleAction(client.data.slug, async () => {
+      await this.roomService.removeUserFromRoom(client.data.slug, client.data.user);
+      this.server.to(client.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(client.data.slug));
+      return {
+        message: "Vous avez quitté la room",
+      }
+    });
   }
 
 

@@ -5,7 +5,7 @@ export class CreatedRoomDto {
   @IsNotEmpty({message: "Le nombre maximum de joueurs ne peut pas être vide"})
   @IsInt({message: "Le nombre maximum de joueurs doit être un nombre entier"})
   @Min(2, {message: "Le nombre de joueurs doit être supérieur ou égal à 2"})
-  @Max(8, {message: "Le nombre de joueurs doit être inférieur ou égal à 8"})
+  @Max(10, {message: "Le nombre de joueurs doit être inférieur ou égal à 10"})
   maxPlayers: number;
 
   @IsOptional()
