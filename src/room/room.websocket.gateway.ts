@@ -110,6 +110,7 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
   async play(@ConnectedSocket() client: Socket, @MessageBody() card: Card): Promise<{}> {
     return this.handleAction(client.data.slug, async () => {
       await this.gameService.play(card, client.data.user, client.data.slug);
+      await this.server.to(client.data.user.socketId).emit('setCard', card);
       await this.emitUpdate(client.data.slug, client);
       if (await this.gameService.checkEveryonePlayed(client.data.slug)) {
         await this.roundTurn(client);
@@ -152,6 +153,7 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
     for (const play of cards) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       let gamePaused: boolean = await this.gameService.playCard(play, client.data.slug);
+      this.server.to(play.user.socketId).emit('flushCard');
       await this.emitUpdate(client.data.slug, client);
       if (gamePaused) {
         return;

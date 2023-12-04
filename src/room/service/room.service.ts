@@ -170,6 +170,8 @@ export class RoomService {
 
   async setOffline(slug: string, user: User): Promise<void> {
     const room: RoomModel = await this.getRoom(slug);
+    let newUser = room.users.find((elem: User) => user.userId === elem.userId);
+    if (!newUser) return;
     room.users.find((elem: User) => user.userId === elem.userId).status = 'Offline';
     await this.redisService.hset(`room:${slug}`, ['users', JSON.stringify(room.users)]);
   }
