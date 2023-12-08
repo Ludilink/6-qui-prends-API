@@ -26,13 +26,15 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
 
   @WebSocketServer() server;
 
+  private timer: schedule.Job;
+
   handleConnection(socket: Socket): void {
     socket.data.user = {
       userId: socket.handshake.query?.userId as string,
       socketId: socket.id,
       username: socket.handshake.query?.username as string,
     };
-    socket.data.slug = socket.handshake.query.slug as string
+    socket.data.slug = socket.handshake.query.slug as string;
     console.log(`New connecting... socket id:`, socket.id);
   }
 
@@ -41,7 +43,7 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
     this.server.to(socket.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(socket.data.slug));
     if (!this.server.adapter.rooms.get(socket.data.slug)) {
       schedule.scheduleJob(new Date(Date.now() + 10 * 60 * 1000), async () => {
-        await this.deleteRoom(socket)
+        await this.deleteRoom(socket);
       });
     }
     console.log(`Disconnecting... socket id:`, socket.id);
@@ -59,25 +61,25 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
       await this.roomService.setOffline(client.data.slug, client.data.user);
       this.server.to(client.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(client.data.slug));
       return {
-        message: "Vous avez quitté la room",
-      }
+        message: 'Vous avez quitté la room',
+      };
     });
   }
 
   @SubscribeMessage('quitRoom')
-  async quitRoom(@ConnectedSocket() client: Socket) {
+  async quitRoom(@ConnectedSocket() client: Socket): Promise<unknown> {
     return this.handleAction(client.data.slug, async () => {
       await this.roomService.removeUserFromRoom(client.data.slug, client.data.user);
       this.server.to(client.data.slug).emit('members', await this.roomService.usersWithoutCardsInRoom(client.data.slug));
       return {
         message: "Vous avez quitté la room",
-      }
+      };
     });
   }
 
 
   @SubscribeMessage('joinRoom')
-  async joinRoom(@ConnectedSocket() client: Socket): Promise<{}> {
+  async joinRoom(@ConnectedSocket() client: Socket): Promise<unknown> {
     return this.handleAction(client.data.slug, async () => {
       await this.roomService.addUserToRoom(client.data.slug, client.data.user)
       client.join(client.data.slug);
@@ -94,7 +96,7 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
   }
 
   @SubscribeMessage('startGame')
-  async startGame(@ConnectedSocket() client: Socket): Promise<{}> {
+  async startGame(@ConnectedSocket() client: Socket): Promise<unknown> {
     return this.handleAction(client.data.slug, async () => {
       const users: User[] = await this.gameService.startGame(client.data.slug, client.data.user);
       for (const user of users) {
@@ -107,11 +109,12 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
   }
 
   @SubscribeMessage('play')
-  async play(@ConnectedSocket() client: Socket, @MessageBody() card: Card): Promise<{}> {
+  async play(@ConnectedSocket() client: Socket, @MessageBody() card: Card): Promise<unknown> {
     return this.handleAction(client.data.slug, async () => {
       await this.gameService.play(card, client.data.user, client.data.slug);
       await this.server.to(client.data.user.socketId).emit('setCard', card);
       await this.emitUpdate(client.data.slug, client);
+      this.stopTimer();
       if (await this.gameService.checkEveryonePlayed(client.data.slug)) {
         await this.roundTurn(client);
       }
@@ -119,7 +122,7 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
   }
 
   @SubscribeMessage('chooseSlot')
-  async chooseSlot(@ConnectedSocket() client: Socket, @MessageBody() slotIndex: number): Promise<{}> {
+  async chooseSlot(@ConnectedSocket() client: Socket, @MessageBody() slotIndex: number): Promise<unknown> {
     return this.handleAction(client.data.slug, async () => {
       await this.gameService.chooseSlot(slotIndex, client.data.slug, client.data.user);
       await this.emitUpdate(client.data.slug, client);
@@ -127,7 +130,7 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
     });
   }
 
-  async handleAction(slug: string, callback: Function): Promise<{}> {
+  async handleAction(slug: string, callback: () => unknown): Promise<unknown> {
     try {
       if (await this.redisService.exists(`room:${slug}`)) {
         return await callback();
@@ -137,7 +140,7 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
     } catch (e) {
       return {
         error: e.message,
-      }
+      };
     }
   }
 
@@ -149,10 +152,10 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
   }
 
   async roundTurn(client: Socket): Promise<void> {
-    let cards: Play[] = await this.gameService.sortCardsPlayed(client.data.slug);
+    const cards: Play[] = await this.gameService.sortCardsPlayed(client.data.slug);
     for (const play of cards) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      let gamePaused: boolean = await this.gameService.playCard(play, client.data.slug);
+      const gamePaused: boolean = await this.gameService.playCard(play, client.data.slug);
       this.server.to(play.user.socketId).emit('flushCard');
       await this.emitUpdate(client.data.slug, client);
       if (gamePaused) {
@@ -166,7 +169,33 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
       await this.roomService.closeRoom(client.data.slug);
     } else {
       await this.gameService.startRound(client.data.slug);
+      this.startTimer(client);
       await this.emitUpdate(client.data.slug, client);
+    }
+  }
+
+  startTimer(socket: Socket) {
+    let timeRemaining: number = 30;
+    const timerInterval = setInterval(async () => {
+      timeRemaining--;
+      if (timeRemaining >= 0) {
+        // this.server.to(socket.data.slug).emit('timer', timeRemaining);
+        await this.gameService.timeleftToUsers(socket.data.slug, this.server, timeRemaining)
+      } else {
+        this.server.to(socket.data.slug).emit('timer', null);
+      }
+    }, 1000);
+
+    this.timer = schedule.scheduleJob(new Date(Date.now() + 30 * 1000), () => {
+      this.server.to(socket.data.slug).emit('timer', null);
+      clearInterval(timerInterval);
+    });
+  }
+
+  stopTimer() {
+    if (this.timer) {
+      this.timer.cancel();
+      this.timer = null;
     }
   }
 }

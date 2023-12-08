@@ -18,7 +18,7 @@ export class GameService {
   }
 
   async flushCards(nb: number): Promise<Card[]> {
-    let fullCards: Card[] = cards(nb);
+    const fullCards: Card[] = cards(nb);
     fullCards.sort(() => Math.random() - 0.5);
     return fullCards;
   }
@@ -71,7 +71,7 @@ export class GameService {
     if (room.status == GameStatus.UNSTARTED) throw new Error("La partie n'a pas commencé");
     if (!user.hasToPlay) throw new Error("Tu as déjà jouer");
     if (!this.cardInDeck(card, user.cards)) throw new Error("Tu n'as pas cette carte");
-    let play: Play = {
+    const play: Play = {
       card: card,
       user: user
     }
@@ -209,6 +209,19 @@ export class GameService {
     round.cards.sort((a: Play, b: Play) => a.card.value - b.card.value);
     await this.redisService.hset(`room:${slug}:${room.currentRound}`, ['cards', JSON.stringify(round.cards)]);
     return round.cards;
+  }
+
+  async timeleftToUsers(slug: string, server: any, timeLeft: number): Promise<User[]> {
+    const room: RoomModel = await this.roomService.getRoom(slug)
+    const round: RoundModel = await this.roomService.getRound(slug, room.currentRound);
+    const users = room.users.filter(userInfo => {
+      return !round.cards.some(play => play.user.userId === userInfo.userId);
+    });
+    for (const user of users) {
+      console.log("TIMELFT => ", user.username, ' => ', user.socketId);
+      server.to(user.socketId).emit('timer', timeLeft)
+    }
+    return users;
   }
 
   // To add in the future stats with hub
