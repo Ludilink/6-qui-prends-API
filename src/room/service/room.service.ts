@@ -14,7 +14,7 @@ export class RoomService {
   }
 
   async createRoom(maxPlayers: number, host: UserInRoom, password?: string): Promise<RoomModel> {
-    let user: User =  {
+    const user: User =  {
       ...host,
       cards: [],
       hasToPlay: true,
@@ -66,7 +66,7 @@ export class RoomService {
     return room;
   }
 
-  async closeRoom(slug: string): Promise<{}> {
+  async closeRoom(slug: string): Promise<unknown> {
     const roomKeys: string[] = await this.redisService.keys(`room:${slug}*`);
     for (const roomKey of roomKeys) {
       if (await this.redisService.exists(roomKey) == 0) {
@@ -86,7 +86,7 @@ export class RoomService {
       if (room.status != GameStatus.UNSTARTED && !room.users.find((element: User) => user.userId == element.userId)) throw new Error("La partie à déjà commencé");
       if (room.currentPlayers >= room.maxPlayers && !room.users.find((element: User) => user.userId === element.userId)) throw new Error("La room est pleine");
       if (room.host.userId == user.userId) {
-        let host = room.users.find((element: User) => element.userId == user.userId)
+        const host = room.users.find((element: User) => element.userId == user.userId)
         if (!host) room.users.push(user)
         else host.socketId = user.socketId;
         host.status = 'Online';
@@ -170,7 +170,7 @@ export class RoomService {
 
   async setOffline(slug: string, user: User): Promise<void> {
     const room: RoomModel = await this.getRoom(slug);
-    let newUser = room.users.find((elem: User) => user.userId === elem.userId);
+    const newUser = room.users.find((elem: User) => user.userId === elem.userId);
     if (!newUser) return;
     room.users.find((elem: User) => user.userId === elem.userId).status = 'Offline';
     await this.redisService.hset(`room:${slug}`, ['users', JSON.stringify(room.users)]);

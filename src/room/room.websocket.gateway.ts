@@ -90,7 +90,6 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
 
   @SubscribeMessage('chat')
   chat(@ConnectedSocket() client: Socket, @MessageBody() message: Message): { message: string } {
-    // console.log("API chat message -> ", message);
     this.server.to(client.data.slug).emit('chat', message, client.data.user); // broadcast messages
     return {message: "Message bien envoyé"};
   }
@@ -135,6 +134,7 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
       if (await this.redisService.exists(`room:${slug}`)) {
         return await callback();
       } else {
+        console.log("ROOM NOT FOUND");
         throw new Error("La room n'existe pas");
       }
     } catch (e) {
@@ -164,9 +164,7 @@ export class RoomWebsocketGateway implements OnGatewayConnection, OnGatewayDisco
     }
     if (await this.gameService.checkEnd(client.data.slug)) {
       await this.gameService.endGame(client.data.slug);
-      this.server.to(client.data.slug).emit('winners', await this.gameService.getClassement(client.data.slug));
-      await this.gameService.addStats(client.data.slug);
-      await this.roomService.closeRoom(client.data.slug);
+      await this.server.to(client.data.slug).emit('winners', await this.gameService.getClassement(client.data.slug));
     } else {
       await this.gameService.startRound(client.data.slug);
       this.startTimer(client);

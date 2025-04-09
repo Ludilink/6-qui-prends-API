@@ -32,7 +32,8 @@ export interface UserInRoom {
 }
 
 export interface User extends UserInRoom {
-  cards: Card[]
+  cards: Card[];
+  cardPlayed?: Card;
 }
 
 export interface UserWithHost extends UserInRoom {

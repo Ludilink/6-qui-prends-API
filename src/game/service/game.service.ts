@@ -57,7 +57,7 @@ export class GameService {
   async newRound(slug: string) {
     const room = await this.roomService.getRoom(slug);
     room.currentRound++;
-    for (const [_, user] of room.users.entries()) {
+    for (const [, user] of room.users.entries()) {
       user.hasToPlay = true;
     }
     await this.redisService.hset(`room:${slug}`, ['currentRound', room.currentRound.toString(), 'users', JSON.stringify(room.users)]);
@@ -85,7 +85,7 @@ export class GameService {
     const room: RoomModel = await this.roomService.getRoom(slug);
     const round: RoundModel = await this.roomService.getRound(slug, room.currentRound);
     if (room.status != GameStatus.CHOOSE_CARD) throw new Error("Ce n'est pas le moment de jouer");
-    let slotIndex = await this.selectSlot(room.board, play.card);
+    const slotIndex = await this.selectSlot(room.board, play.card);
     if (slotIndex > 0) {
       if (await this.checkSlotFull(slotIndex, slug)) {
         let allBulls: number = 0;
@@ -111,7 +111,7 @@ export class GameService {
   async startRound(slug: string) {
     const room: RoomModel = await this.roomService.getRoom(slug);
     room.status = GameStatus.CHOOSE_CARD;
-    for (const [_, user] of room.users.entries()) {
+    for (const [, user] of room.users.entries()) {
       user.hasToPlay = true;
     }
     await this.redisService.hset(`room:${slug}`, ['status', GameStatus.CHOOSE_CARD, 'users', JSON.stringify(room.users), 'currentRound', (room.currentRound + 1).toString()]);
@@ -161,8 +161,8 @@ export class GameService {
 
   async getClassement(slug: string): Promise<User[]> {
     const room: RoomModel = await this.roomService.getRoom(slug);
-    room.users.sort((a: User, b: User) => b.bullsLost - a.bullsLost);
-    return room.users;
+    const classement = room.users.sort((a: User, b: User) => b.bullsLost - a.bullsLost);
+    return classement;
   }
 
   cardInDeck(card: Card, deck: Card[]): boolean {
@@ -222,11 +222,6 @@ export class GameService {
       server.to(user.socketId).emit('timer', timeLeft)
     }
     return users;
-  }
-
-  // To add in the future stats with hub
-  async addStats(slug: string): Promise<void> {
-    return;
   }
 }
 
